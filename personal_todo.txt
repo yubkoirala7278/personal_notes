@@ -1,3 +1,22 @@
-1. Notes system.
-2. Hospital management system.
-3. Ecommerce system using Laravel api and vuejs
+a)Token based authentication in Laravel and implement in vuejs
+1. Login User
+2. Register User
+3. Verify email before login
+4. Reset Password
+5. Logout
+
+b)Create category, subcategory, colors , brands and products. 
+1. Role admin can do CRUD operation for category, subcategory, colors and brands. 
+2. Role product_manager can do CRUD operation for products.
+3. Role customer cannot access admin panel but can place order from frontend.
+4. Register customer through Google account.
+5. Create a contact us page in frontend.
+6. when new order placed then send notification and email to product_manager.
+7. Admin can create new role and assign him permissions dynamically like create_product, create_category etc.
+
+c)Socialite Login in Laravel and vuejs 
+1. Google
+2. GitHub
+
+
+
