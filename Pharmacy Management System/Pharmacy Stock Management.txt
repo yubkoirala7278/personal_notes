@@ -1,0 +1,527 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        // Shops table (pharmacies)
+        Schema::create('shops', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('phone', 20)->nullable();
+            $table->text('address')->nullable();
+            $table->string('currency', 3)->default('USD');
+            $table->timestamps();
+        });
+
+        // Warehouses table (multiple locations per pharmacy)
+        Schema::create('warehouses', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->text('address')->nullable();
+            $table->timestamps();
+        });
+
+        // Users table
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->nullable()->constrained()->onDelete('set null');
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->timestamps();
+        });
+
+        // Roles table (Spatie, with shop_id for multi-tenancy)
+        Schema::create('roles', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->nullable()->constrained()->onDelete('cascade');
+            $table->string('name')->unique();
+            $table->string('guard_name');
+            $table->timestamps();
+            $table->index(['shop_id', 'name']);
+        });
+
+        // Permissions table (Spatie, with shop_id for multi-tenancy)
+        Schema::create('permissions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->nullable()->constrained()->onDelete('cascade');
+            $table->string('name')->unique();
+            $table->string('guard_name');
+            $table->timestamps();
+            $table->index(['shop_id', 'name']);
+        });
+
+        // Model Has Permissions table (Spatie pivot)
+        Schema::create('model_has_permissions', function (Blueprint $table) {
+            $table->foreignId('permission_id')->constrained()->onDelete('cascade');
+            $table->morphs('model');
+            $table->primary(['permission_id', 'model_id', 'model_type']);
+        });
+
+        // Model Has Roles table (Spatie pivot)
+        Schema::create('model_has_roles', function (Blueprint $table) {
+            $table->foreignId('role_id')->constrained()->onDelete('cascade');
+            $table->morphs('model');
+            $table->primary(['role_id', 'model_id', 'model_type']);
+        });
+
+        // Role Has Permissions table (Spatie pivot)
+        Schema::create('role_has_permissions', function (Blueprint $table) {
+            $table->foreignId('permission_id')->constrained()->onDelete('cascade');
+            $table->foreignId('role_id')->constrained()->onDelete('cascade');
+            $table->primary(['permission_id', 'role_id']);
+        });
+
+        // Customers table (with regular patient fields)
+        Schema::create('customers', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->string('email')->nullable();
+            $table->string('phone', 20)->nullable();
+            $table->text('address')->nullable();
+            $table->decimal('credit_balance', 10, 2)->default(0);
+            $table->integer('loyalty_points')->default(0);
+            $table->boolean('is_regular')->default(false);
+            $table->json('medical_conditions')->nullable();
+            $table->timestamps();
+        });
+
+        // Suppliers table
+        Schema::create('suppliers', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->string('email')->nullable();
+            $table->string('phone', 20)->nullable();
+            $table->text('address')->nullable();
+            $table->timestamps();
+        });
+
+        // Supplier Accounts table
+        Schema::create('supplier_accounts', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('supplier_id')->constrained()->onDelete('cascade');
+            $table->decimal('credit_balance', 10, 2)->default(0);
+            $table->timestamps();
+        });
+
+        // Product Categories table
+        Schema::create('product_categories', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->timestamps();
+        });
+
+        // Products table (base product details)
+        Schema::create('products', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('category_id')->nullable()->constrained('product_categories')->onDelete('set null');
+            $table->string('name');
+            $table->string('barcode', 50);
+            $table->text('description')->nullable();
+            $table->decimal('unit_price', 10, 2);
+            $table->integer('low_stock_threshold')->nullable();
+            $table->string('image')->nullable();
+            $table->timestamps();
+            $table->unique(['shop_id', 'barcode']);
+            $table->index(['shop_id', 'barcode']);
+        });
+
+        // Product Variants table (batch-specific details)
+        Schema::create('product_variants', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('product_id')->constrained()->onDelete('cascade');
+            $table->foreignId('warehouse_id')->nullable()->constrained()->onDelete('set null');
+            $table->string('name');
+            $table->string('barcode', 50)->nullable();
+            $table->string('batch_number', 50)->nullable();
+            $table->integer('stock_quantity')->default(0);
+            $table->date('expiration_date')->nullable();
+            $table->timestamps();
+            $table->unique(['product_id', 'barcode', 'batch_number']);
+        });
+
+        // Prescriptions table
+        Schema::create('prescriptions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('customer_id')->constrained()->onDelete('cascade');
+            $table->string('prescription_number')->unique();
+            $table->date('issue_date');
+            $table->date('expiry_date')->nullable();
+            $table->string('doctor_name')->nullable();
+            $table->text('notes')->nullable();
+            $table->integer('refills_allowed')->default(0);
+            $table->integer('refills_remaining')->default(0);
+            $table->enum('status', ['active', 'expired', 'cancelled'])->default('active');
+            $table->timestamps();
+        });
+
+        // Prescription Items table
+        Schema::create('prescription_items', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('prescription_id')->constrained()->onDelete('cascade');
+            $table->foreignId('product_id')->constrained()->onDelete('restrict');
+            $table->foreignId('product_variant_id')->nullable()->constrained()->onDelete('restrict');
+            $table->string('batch_number', 50)->nullable();
+            $table->integer('quantity');
+            $table->string('dosage_instructions')->nullable();
+            $table->string('frequency')->nullable();
+            $table->timestamps();
+        });
+
+        // Discounts table (with customer_type)
+        Schema::create('discounts', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->enum('type', ['percentage', 'fixed']);
+            $table->decimal('value', 10, 2);
+            $table->enum('customer_type', ['all', 'regular'])->default('all');
+            $table->timestamps();
+        });
+
+        // Discount Rules table
+        Schema::create('discount_rules', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('discount_id')->constrained()->onDelete('cascade');
+            $table->foreignId('product_id')->nullable()->constrained()->onDelete('restrict');
+            $table->foreignId('category_id')->nullable()->constrained('product_categories')->onDelete('restrict');
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        // Taxes table
+        Schema::create('taxes', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->decimal('rate', 5, 2);
+            $table->timestamps();
+        });
+
+        // Purchase Orders table
+        Schema::create('purchase_orders', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('supplier_id')->constrained()->onDelete('restrict');
+            $table->date('order_date');
+            $table->decimal('total_amount', 10, 2);
+            $table->decimal('total_tax', 10, 2)->default(0);
+            $table->decimal('total_discount', 10, 2)->default(0);
+            $table->enum('status', ['draft', 'approved', 'completed', 'cancelled'])->default('draft');
+            $table->timestamps();
+        });
+
+        // Purchase Order Items table
+        Schema::create('purchase_order_items', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('purchase_order_id')->constrained()->onDelete('cascade');
+            $table->foreignId('product_id')->constrained()->onDelete('restrict');
+            $table->foreignId('product_variant_id')->nullable()->constrained()->onDelete('restrict');
+            $table->string('batch_number', 50)->nullable();
+            $table->integer('quantity');
+            $table->decimal('unit_price', 10, 2);
+            $table->decimal('total_price', 10, 2);
+            $table->decimal('tax_amount', 10, 2)->default(0);
+            $table->decimal('discount_amount', 10, 2)->default(0);
+            $table->timestamps();
+        });
+
+        // Purchases table
+        Schema::create('purchases', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('supplier_id')->constrained()->onDelete('restrict');
+            $table->foreignId('purchase_order_id')->nullable()->constrained()->onDelete('set null');
+            $table->date('purchase_date');
+            $table->decimal('total_amount', 10, 2);
+            $table->decimal('total_tax', 10, 2)->default(0);
+            $table->decimal('total_discount', 10, 2)->default(0);
+            $table->enum('payment_type', ['cash', 'debit', 'credit']);
+            $table->date('credit_due_date')->nullable();
+            $table->enum('status', ['pending', 'completed', 'cancelled'])->default('pending');
+            $table->timestamps();
+        });
+
+        // Purchase Items table
+        Schema::create('purchase_items', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('purchase_id')->constrained()->onDelete('cascade');
+            $table->foreignId('product_id')->constrained()->onDelete('restrict');
+            $table->foreignId('product_variant_id')->nullable()->constrained()->onDelete('restrict');
+            $table->string('batch_number', 50)->nullable();
+            $table->integer('quantity');
+            $table->decimal('unit_price', 10, 2);
+            $table->decimal('total_price', 10, 2);
+            $table->decimal('tax_amount', 10, 2)->default(0);
+            $table->decimal('discount_amount', 10, 2)->default(0);
+            $table->timestamps();
+        });
+
+        // Sales Orders table
+        Schema::create('sales_orders', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('customer_id')->nullable()->constrained()->onDelete('set null');
+            $table->date('order_date');
+            $table->decimal('total_amount', 10, 2);
+            $table->decimal('total_tax', 10, 2)->default(0);
+            $table->decimal('total_discount', 10, 2)->default(0);
+            $table->enum('status', ['draft', 'approved', 'completed', 'cancelled'])->default('draft');
+            $table->timestamps();
+        });
+
+        // Sales Order Items table
+        Schema::create('sales_order_items', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('sales_order_id')->constrained()->onDelete('cascade');
+            $table->foreignId('product_id')->constrained()->onDelete('restrict');
+            $table->foreignId('product_variant_id')->nullable()->constrained()->onDelete('restrict');
+            $table->string('batch_number', 50)->nullable();
+            $table->integer('quantity');
+            $table->decimal('unit_price', 10, 2);
+            $table->decimal('total_price', 10, 2);
+            $table->decimal('tax_amount', 10, 2)->default(0);
+            $table->decimal('discount_amount', 10, 2)->default(0);
+            $table->timestamps();
+        });
+
+        // Sales table
+        Schema::create('sales', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('customer_id')->nullable()->constrained()->onDelete('set null');
+            $table->foreignId('sales_order_id')->nullable()->constrained()->onDelete('set null');
+            $table->date('sale_date');
+            $table->decimal('total_amount', 10, 2);
+            $table->decimal('total_tax', 10, 2)->default(0);
+            $table->decimal('total_discount', 10, 2)->default(0);
+            $table->enum('payment_type', ['cash', 'debit', 'credit']);
+            $table->date('credit_due_date')->nullable();
+            $table->enum('status', ['completed', 'returned', 'pending'])->default('completed');
+            $table->timestamps();
+        });
+
+        // Sale Items table (with discount_id)
+        Schema::create('sale_items', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('sale_id')->constrained()->onDelete('cascade');
+            $table->foreignId('product_id')->constrained()->onDelete('restrict');
+            $table->foreignId('product_variant_id')->nullable()->constrained()->onDelete('restrict');
+            $table->foreignId('prescription_item_id')->nullable()->constrained()->onDelete('set null');
+            $table->foreignId('discount_id')->nullable()->constrained()->onDelete('set null');
+            $table->string('batch_number', 50)->nullable();
+            $table->integer('quantity');
+            $table->decimal('unit_price', 10, 2);
+            $table->decimal('total_price', 10, 2);
+            $table->decimal('tax_amount', 10, 2)->default(0);
+            $table->decimal('discount_amount', 10, 2)->default(0);
+            $table->timestamps();
+        });
+
+        // Payments table
+        Schema::create('payments', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('purchase_id')->nullable()->constrained()->onDelete('set null');
+            $table->foreignId('sale_id')->nullable()->constrained()->onDelete('set null');
+            $table->foreignId('customer_id')->nullable()->constrained()->onDelete('set null');
+            $table->decimal('amount', 10, 2);
+            $table->date('payment_date');
+            $table->enum('payment_method', ['cash', 'debit', 'credit', 'bank_transfer']);
+            $table->timestamps();
+        });
+
+        // Supplier Returns table
+        Schema::create('supplier_returns', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('supplier_id')->constrained()->onDelete('restrict');
+            $table->foreignId('product_id')->constrained()->onDelete('restrict');
+            $table->foreignId('product_variant_id')->nullable()->constrained()->onDelete('restrict');
+            $table->string('batch_number', 50)->nullable();
+            $table->integer('quantity');
+            $table->date('return_date');
+            $table->text('reason');
+            $table->decimal('total_amount', 10, 2);
+            $table->enum('payment_type', ['cash', 'credit', 'bank_transfer']);
+            $table->enum('status', ['pending', 'completed', 'rejected'])->default('pending');
+            $table->timestamps();
+        });
+
+        // Customer Returns table
+        Schema::create('customer_returns', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('sale_id')->constrained()->onDelete('cascade');
+            $table->foreignId('sale_item_id')->constrained('sale_items')->onDelete('cascade');
+            $table->foreignId('customer_id')->nullable()->constrained()->onDelete('set null');
+            $table->integer('quantity');
+            $table->date('return_date');
+            $table->text('reason');
+            $table->decimal('total_amount', 10, 2);
+            $table->enum('payment_type', ['cash', 'credit', 'bank_transfer', 'store_credit']);
+            $table->enum('status', ['pending', 'completed', 'rejected'])->default('pending');
+            $table->timestamps();
+        });
+
+        // Subscription Plans table
+        Schema::create('subscription_plans', function ($table) {
+            $table->id();
+            $table->string('name');
+            $table->enum('billing_cycle', ['monthly', 'yearly']);
+            $table->decimal('amount', 10, 2);
+            $table->json('features');
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        // Subscriptions table
+        Schema::create('subscriptions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('subscription_plan_id')->constrained()->onDelete('restrict');
+            $table->date('start_date');
+            $table->date('end_date')->nullable();
+            $table->enum('status', ['active', 'expired', 'cancelled'])->default('pending');
+            $table->enum('payment_status', ['paid', 'pending', 'failed'])->default('pending');
+            $table->boolean('is_trial')->default(false);
+            $table->timestamps();
+        });
+
+        // Invoices table
+        Schema::create('invoices', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('subscription_id')->constrained()->onDelete('cascade');
+            $table->decimal('amount', 10, 2);
+            $table->date('issue_date');
+            $table->date('due_date');
+            $table->enum('status', ['paid', 'pending', 'overdue'])->default('pending');
+            $table->timestamps();
+        });
+
+        // Payment Gateways table
+        Schema::create('payment_gateways', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('gateway_name');
+            $table->json('api_credentials');
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        // Loyalty Programs table
+        Schema::create('loyalty_programs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->decimal('points_per_sale', 10, 2);
+            $table->decimal('reward_value', 10, 2);
+            $table->timestamps();
+        });
+
+        // Stock Adjustments table
+        Schema::create('stock_adjustments', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->foreignId('product_id')->constrained()->onDelete('restrict');
+            $table->foreignId('product_variant_id')->nullable()->constrained()->onDelete('restrict');
+            $table->foreignId('warehouse_id')->nullable()->constrained()->onDelete('set null');
+            $table->string('batch_number', 50)->nullable();
+            $table->integer('quantity');
+            $table->text('reason');
+            $table->date('adjustment_date');
+            $table->timestamps();
+        });
+
+        // Report Templates table
+        Schema::create('report_templates', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->enum('type', ['sales', 'inventory', 'purchases', 'customers']);
+            $table->json('filters');
+            $table->timestamps();
+        });
+
+        // Compliance Logs table
+        Schema::create('compliance_logs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->constrained()->onDelete('cascade');
+            $table->string('type');
+            $table->json('data');
+            $table->timestamps();
+        });
+
+        // Audit Logs table
+        Schema::create('audit_logs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shop_id')->nullable()->constrained()->onDelete('cascade');
+            $table->foreignId('user_id')->nullable()->constrained()->onDelete('set null');
+            $table->string('action');
+            $table->string('model_type');
+            $table->unsignedBigInteger('model_id');
+            $table->text('description');
+            $table->timestamp('created_at');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('audit_logs');
+        Schema::dropIfExists('compliance_logs');
+        Schema::dropIfExists('report_templates');
+        Schema::dropIfExists('stock_adjustments');
+        Schema::dropIfExists('loyalty_programs');
+        Schema::dropIfExists('payment_gateways');
+        Schema::dropIfExists('invoices');
+        Schema::dropIfExists('subscriptions');
+        Schema::dropIfExists('subscription_plans');
+        Schema::dropIfExists('customer_returns');
+        Schema::dropIfExists('supplier_returns');
+        Schema::dropIfExists('payments');
+        Schema::dropIfExists('sale_items');
+        Schema::dropIfExists('sales');
+        Schema::dropIfExists('sales_order_items');
+        Schema::dropIfExists('sales_orders');
+        Schema::dropIfExists('purchase_items');
+        Schema::dropIfExists('purchases');
+        Schema::dropIfExists('purchase_order_items');
+        Schema::dropIfExists('purchase_orders');
+        Schema::dropIfExists('discount_rules');
+        Schema::dropIfExists('discounts');
+        Schema::dropIfExists('taxes');
+        Schema::dropIfExists('prescription_items');
+        Schema::dropIfExists('prescriptions');
+        Schema::dropIfExists('product_variants');
+        Schema::dropIfExists('products');
+        Schema::dropIfExists('product_categories');
+        Schema::dropIfExists('supplier_accounts');
+        Schema::dropIfExists('suppliers');
+        Schema::dropIfExists('customers');
+        Schema::dropIfExists('model_has_permissions');
+        Schema::dropIfExists('model_has_roles');
+        Schema::dropIfExists('role_has_permissions');
+        Schema::dropIfExists('permissions');
+        Schema::dropIfExists('roles');
+        Schema::dropIfExists('users');
+        Schema::dropIfExists('warehouses');
+        Schema::dropIfExists('shops');
+    }
+};

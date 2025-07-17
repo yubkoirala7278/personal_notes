@@ -1,22 +1,19 @@
-a)Token based authentication in Laravel and implement in vuejs
-1. Login User
-2. Register User
-3. Verify email before login
-4. Reset Password
-5. Logout
-
-b)Create category, subcategory, colors , brands and products. 
-1. Role admin can do CRUD operation for category, subcategory, colors and brands. 
-2. Role product_manager can do CRUD operation for products.
-3. Role customer cannot access admin panel but can place order from frontend.
-4. Register customer through Google account.
-5. Create a contact us page in frontend.
-6. when new order placed then send notification and email to product_manager.
-7. Admin can create new role and assign him permissions dynamically like create_product, create_category etc.
-
-c)Socialite Login in Laravel and vuejs 
-1. Google
-2. GitHub
-
-
-
+1. ERP Project
+2. Subscription Based Project
+3. what is saas project?
+4. CMS project in Laravel.
+5. Multi tenacy in Laravel
+6. how to add google reCAPTCHA
+7. building a simple scraping website
+8.CRM system in Laravel
+9.Multi language content in Laravel
+10. ci/cd pipeline
+11. about aws
+12. payment integration like esewa, Khalti, paypal
+13. pwa website 
+14. git
+15. rest api
+16. what does open source means?
+17. testing
+18. traits
+19. maintain logs
